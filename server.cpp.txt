@@ -1,0 +1,69 @@
+#include <iostream>
+#include <unistd.h>
+#include <string.h>
+#include <arpa/inet.h>
+#include <thread>
+#include <vector>
+using namespace std;
+
+vector<int> clients;
+
+void handleClient(int clientSocket) {
+    char buffer[1024];
+
+    while (true) {
+        memset(buffer, 0, sizeof(buffer));
+        int bytes = recv(clientSocket, buffer, sizeof(buffer), 0);
+
+        if (bytes <= 0) {
+            close(clientSocket);
+            break;
+        }
+
+        for (int c : clients) {
+            if (c != clientSocket) {
+                send(c, buffer, bytes, 0);
+            }
+        }
+    }
+}
+
+int main() {
+    int serverSocket = socket(AF_INET, SOCK_STREAM, 0);
+    if (serverSocket < 0) {
+        cout << "Socket creation failed\n";
+        return 0;
+    }
+
+    sockaddr_in serverAddr;
+    serverAddr.sin_family = AF_INET;
+    serverAddr.sin_port = htons(8080);
+    serverAddr.sin_addr.s_addr = INADDR_ANY;
+
+    if (bind(serverSocket, (sockaddr*)&serverAddr, sizeof(serverAddr)) < 0) {
+        cout << "Bind failed\n";
+        return 0;
+    }
+
+    if (listen(serverSocket, 5) < 0) {
+        cout << "Listen failed\n";
+        return 0;
+    }
+
+    cout << "Server running on port 8080...\n";
+
+    while (true) {
+        int clientSocket = accept(serverSocket, nullptr, nullptr);
+        if (clientSocket < 0) {
+            cout << "Client accept failed\n";
+            continue;
+        }
+
+        clients.push_back(clientSocket);
+        thread t(handleClient, clientSocket);
+        t.detach();
+    }
+
+    close(serverSocket);
+    return 0;
+}

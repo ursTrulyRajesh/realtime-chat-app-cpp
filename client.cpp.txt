@@ -1,0 +1,66 @@
+#include <iostream>
+#include <unistd.h>
+#include <string.h>
+#include <arpa/inet.h>
+#include <thread>
+#include <ctime>
+using namespace std;
+
+string username;
+
+string getTime() {
+    time_t now = time(0);
+    tm *ltm = localtime(&now);
+
+    char timeStr[10];
+    sprintf(timeStr, "%02d:%02d:%02d",
+            ltm->tm_hour, ltm->tm_min, ltm->tm_sec);
+
+    return string(timeStr);
+}
+
+void receiveMsg(int sock) {
+    char buffer[1024];
+    while (true) {
+        memset(buffer, 0, sizeof(buffer));
+        int bytes = recv(sock, buffer, sizeof(buffer), 0);
+        if (bytes <= 0) break;
+        cout << buffer << endl;
+    }
+}
+
+int main() {
+    int sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock < 0) {
+        cout << "Socket creation failed\n";
+        return 0;
+    }
+
+    sockaddr_in serverAddr;
+    serverAddr.sin_family = AF_INET;
+    serverAddr.sin_port = htons(8080);
+    serverAddr.sin_addr.s_addr = inet_addr("127.0.0.1");
+
+    if (connect(sock, (sockaddr*)&serverAddr, sizeof(serverAddr)) < 0) {
+        cout << "Connection failed\n";
+        return 0;
+    }
+
+    cout << "Enter username: ";
+    cin >> username;
+    cin.ignore();
+
+    thread t(receiveMsg, sock);
+    t.detach();
+
+    char msg[1024];
+    while (true) {
+        cin.getline(msg, 1024);
+
+        string finalMsg = "[" + getTime() + "] " + username + ": " + msg;
+        send(sock, finalMsg.c_str(), finalMsg.length(), 0);
+    }
+
+    close(sock);
+    return 0;
+}
